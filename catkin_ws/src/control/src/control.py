@@ -1,9 +1,10 @@
 #!/usr/bin/env python
 import rospy
 import tf
+import math
 import geometry_msgs.msg
 from geometry_msgs.msg import Twist
-from geometry_msgs.msg import Pose
+from geometry_msgs.msg import Pose, PoseStamped
 from geometry_msgs.msg import TransformStamped
 from math import pow, atan2, sqrt, pi, degrees
 from std_msgs.msg import Float32MultiArray
@@ -60,11 +61,15 @@ class Controller:
 
         #initialization of the ros node and relevant pub/sub
         rospy.init_node("PID_node")
-        self.velocity_publisher=rospy.Publisher("/mavros/setpoint_velocity/cmd_vel_unstamped",Twist,queue_size=1) 
+        self.velocity_publisher=rospy.Publisher("/mavros/setpoint_velocity/cmd_vel_unstamped",Twist,queue_size=1)
+        self.position_publisher=rospy.Publisher("/mavros/setpoint_position/local",PoseStamped,queue_size=1) 
         self.bebop_subscriber=rospy.Subscriber("/relative_distance", Float32MultiArray ,self.call_back)
+        self.position_subscriber=rospy.Subscriber("/mavros/local_position", PoseStamped ,self.pos_call_back)
 
         #robot current state
         self.state = State()
+
+        self.local_position = PoseStamped()
 
         #controller frequency in Hz
         self.hz=50.0
@@ -72,7 +77,7 @@ class Controller:
         self.dt=(1.0/self.hz)
 
         #define pids
-        self.pid_rho = PID(kp=0.2,dt=self.dt)
+        self.pid_rho = PID(kp=0.2 ,dt=self.dt)
 
     # transformation
     def call_back(self, msg):
@@ -81,6 +86,23 @@ class Controller:
         self.state.y = -msg.data[0]
         self.state.z = -msg.data[2]
 
+    def pos_call_back(self, msg):
+        #print(msg.data)
+        self.local_position.pose.position.x = msg.pose.position.x
+        self.local_position.pose.position.y = msg.pose.position.y
+        self.local_position.pose.position.z = msg.pose.position.z
+
+
+    def takeoff(self):
+        print("Fly to z = 2")
+        pos_msg = PoseStamped()
+        pos_msg.pose.position.x = 0
+        pos_msg.pose.position.y = 0
+        pos_msg.pose.position.z = 2
+        for i in range(200):
+            self.position_publisher.publish(pos_msg)
+            self.rate.sleep()
+        
     def move_to_goal(self):
 
         #variable initialization
@@ -88,9 +110,16 @@ class Controller:
         tolerance_position = 0.01
 
         rho = euclidean_distance(self.state.x, self.state.y, self.state.z)
-        while rho >= tolerance_position or rho==0:
+        while (rho >= tolerance_position or rho==0) and self.state.z<-1:
             rospy.loginfo("Distance from goal:"+str(rho))
-
+           # if math.isnan(self.state.x):
+           #     for i in range(100):
+           #         self.rate.sleep()
+           #         if ~math.isnan(self.state.x):
+           #             print("find not nan")
+           #             break
+           # if math.isnan(self.state.x):
+           #     break
             rho = euclidean_distance(self.state.x, self.state.y, self.state.z)
             err_x = self.state.x
             err_y = self.state.y
@@ -122,11 +151,29 @@ class Controller:
             self.velocity_publisher.publish(vel_msg)
             self.rate.sleep()
 
+        if self.local_position.pose.position.z > 0:
+            print("landing begin")
+            vel_msg.linear.x=0.0
+            vel_msg.linear.y=0.0
+            vel_msg.linear.z=-2.0
+            for i in range(1000):
+                self.velocity_publisher.publish(vel_msg)
+                self.rate.sleep()
+        
         #stop the robot
         vel_msg.linear.x=0.0
         vel_msg.linear.y=0.0
         vel_msg.linear.z=0.0
         self.velocity_publisher.publish(vel_msg)
+
+        #pos_msg = PoseStamped()
+        #pos_msg.pose.position.x = self.local_position.pose.position.x
+        #pos_msg.pose.position.y = self.local_position.pose.position.y
+        #pos_msg.pose.position.z = 0
+        #for i in range(200):
+        #    self.position_publisher.publish(pos_msg)
+        #    self.rate.sleep()
+        
         rospy.loginfo("I'm here(relative info): "+ str(self.state.x) + " , " + str(self.state.y) +" , " + str(self.state.z))
         print("___")
 
@@ -136,6 +183,9 @@ class Controller:
 if __name__ == '__main__':
     try:
         x = Controller()
+
+        # TAKE OFF
+        x.takeoff()
 
         #MOVE TO THE GOALS
         x.move_to_goal()
