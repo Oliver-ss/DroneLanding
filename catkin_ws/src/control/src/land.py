@@ -110,10 +110,10 @@ class Controller:
         vel_msg = Twist()
 
         # move in 2d
-        rho = euclidean_distance(self.state.x, self.state.y)
+        rho = euclidean_distance(self.state.x, self.state.y, 0.0)
         while rho >= tolerance_2d or rho==0 and not math.isnan(self.state.x):
             rospy.loginfo("2d Distance from goal:"+str(rho))
-            rho = euclidean_distance(self.state.x, self.state.y)
+            rho = euclidean_distance(self.state.x, self.state.y, 0.0)
 
             err_x = self.state.x
             err_y = self.state.y
@@ -144,11 +144,11 @@ class Controller:
         vel_msg = Twist()
         height = self.state.z
         
-        while height >= tolerance_height and not math.isnan(self.state.x):
+        while abs(height) >= tolerance_height and not math.isnan(self.state.x):
             rospy.loginfo("height from goal:"+str(height))
             height = self.state.z
 
-            vz = self.pid_rho_height.compute(err_z) * 0.2
+            vz = self.pid_rho_height.compute(height) * 0.2
 
             #fill message
             vel_msg.linear.x = 0.0 
@@ -170,16 +170,17 @@ class Controller:
 
         
     def move_to_goal(self):
-
-        tolerance_2d = [0.5, 0.25]
-        tolerance_height = [1, 0.5]
-        move_in_2d(tolerance_2d[0])
+        vel_msg = Twist()
+        tolerance_2d = [0.6, 0.3]
+        tolerance_height = [1.5, 0.5]
+        
+        self.move_in_2d(tolerance_2d[0])
         print("_________________start descending - 1_________________")
-        move_in_height(tolerance_height[0])
+        self.move_in_height(tolerance_height[0])
 
-        move_in_2d(tolerance_2d[1])
+        self.move_in_2d(tolerance_2d[1])
         print("_________________start descending - 2_________________")
-        move_in_height(tolerance_height[1])
+        self.move_in_height(tolerance_height[1])
 
         # stop the robot
         vel_msg.linear.x=0.0
@@ -192,7 +193,7 @@ class Controller:
         rospy.wait_for_service('/mavros/cmd/land')
         try:
             land_cl = rospy.ServiceProxy('/mavros/cmd/land', CommandTOL)
-            response = land_cl(altitude = height, latitude=0, longitude=0, min_pitch=0, yaw=0)
+            response = land_cl(altitude = abs(self.state.z), latitude=0, longitude=0, min_pitch=0, yaw=0)
             rospy.loginfo(response)
         except rospy.ServiceException as e:
             print("Landing failed: %s" %e)
