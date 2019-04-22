@@ -10,6 +10,9 @@ from math import pow, atan2, sqrt, pi, degrees
 from std_msgs.msg import Float32MultiArray
 from tf.transformations import euler_from_quaternion
 from tf.transformations import quaternion_from_euler
+from mavros_msgs.srv import SetMode
+from mavros_msgs.srv import CommandBool
+from mavros_msgs.srv import CommandTOL
 
 def euclidean_distance(xd, yd, zd):
     return sqrt(pow((xd), 2) + pow((yd), 2) + pow((zd), 2))
@@ -64,7 +67,7 @@ class Controller:
         self.velocity_publisher=rospy.Publisher("/mavros/setpoint_velocity/cmd_vel_unstamped",Twist,queue_size=1)
         self.position_publisher=rospy.Publisher("/mavros/setpoint_position/local",PoseStamped,queue_size=1) 
         self.bebop_subscriber=rospy.Subscriber("/relative_distance", Float32MultiArray ,self.call_back)
-        self.position_subscriber=rospy.Subscriber("/mavros/local_position", PoseStamped ,self.pos_call_back)
+        self.position_subscriber=rospy.Subscriber("/mavros/local_position/pose", PoseStamped ,self.pos_call_back)
 
         #robot current state
         self.state = State()
@@ -87,7 +90,6 @@ class Controller:
         self.state.z = -msg.data[2]
 
     def pos_call_back(self, msg):
-        #print(msg.data)
         self.local_position.pose.position.x = msg.pose.position.x
         self.local_position.pose.position.y = msg.pose.position.y
         self.local_position.pose.position.z = msg.pose.position.z
@@ -110,7 +112,7 @@ class Controller:
         tolerance_position = 0.01
 
         rho = euclidean_distance(self.state.x, self.state.y, self.state.z)
-        while (rho >= tolerance_position or rho==0) and self.state.z<-1:
+        while (rho >= tolerance_position or rho==0) and self.state.z < -1:
             rospy.loginfo("Distance from goal:"+str(rho))
            # if math.isnan(self.state.x):
            #     for i in range(100):
@@ -160,11 +162,22 @@ class Controller:
                 self.velocity_publisher.publish(vel_msg)
                 self.rate.sleep()
         
-        #stop the robot
+        # stop the robot
         vel_msg.linear.x=0.0
         vel_msg.linear.y=0.0
         vel_msg.linear.z=0.0
         self.velocity_publisher.publish(vel_msg)
+
+        # Land
+        print "\n Landing"
+        rospy.wait_for_service('/mavros/cmd/land')
+        try:
+            land_cl = rospy.ServiceProxy('/mavros/cmd/land', CommandTOL)
+            response = land_cl(altitude=, latitude=0, longitude=0, min_pitch=0, yaw=0)
+            rospy.loginfo(response)
+        except rospy.ServiceException as e:
+            print("Landing failed: %s" %e)
+
 
         #pos_msg = PoseStamped()
         #pos_msg.pose.position.x = self.local_position.pose.position.x
