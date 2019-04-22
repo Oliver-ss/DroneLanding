@@ -80,7 +80,7 @@ class Controller:
         self.dt=(1.0/self.hz)
 
         #define pids
-        self.pid_rho_2d = PID(kp=0.3, ki=0.01, dt=self.dt)
+        self.pid_rho = PID(kp=0.3, ki=0.02, dt=self.dt)
         self.pid_rho_height = PID(kp=0.1, ki=0.01, dt=self.dt)
 
     # transformation
@@ -125,7 +125,7 @@ class Controller:
             if (rho / abs(self.state.z)) >= 0.1:
                 vz = 0.0
             else:
-                vz = 0.25
+                vz = -0.25
 
             #fill message
             vel_msg.linear.x = vx
@@ -142,7 +142,7 @@ class Controller:
             print("_________________")
 
             #publish
-            self.rel_dist_publisher.publish(vel_msg)
+            self.velocity_publisher.publish(vel_msg)
             self.rate.sleep()
 
         # stop the robot
