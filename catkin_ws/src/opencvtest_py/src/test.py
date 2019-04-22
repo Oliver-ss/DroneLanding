@@ -22,7 +22,8 @@ class image_converter:
 
     self.bridge = CvBridge()
     self.image_sub = rospy.Subscriber("/iris/image_raw",Image,self.callback)
-
+    self.lostnumber=0
+    
   def callback(self,data):
     try:
       # tranform ROS image message into opencv image
@@ -33,7 +34,7 @@ class image_converter:
     global  ret, mtx, dist, rvecs, tvecs
 
     # aruco basic setting
-    aruco_dict = aruco.Dictionary_get(aruco.DICT_6X6_250)
+    aruco_dict = aruco.Dictionary_get(aruco.DICT_4X4_50)
     parameters = aruco.DetectorParameters_create()
 
     # convert the image 
@@ -41,12 +42,29 @@ class image_converter:
 
     # detect maker configuraiton
     corners, ids, rejectedImgPoints = aruco.detectMarkers(cv_image_gray, aruco_dict, parameters=parameters)
-
     if np.all(ids != None):
+      self.lostnumber=0
+      id=ids[0][0]
+      lock_number=0
+      for i in range(ids.size):
+        if ids[i][0]>id:
+          id=ids[i][0]
+          lock_number=i
+      markersize=0
+      if id==1:
+        markersize=0.139
+      elif id==2:
+        markersize=0.071
+      elif id==3:
+        markersize=0.0325
+      elif id==4:
+        markersize=0.016
+      
       # pose estimation
       # 0.19: markerLength, mtx: cameraMatrix, dist: distortion coefficients
       # rvec: 
-      rvec, tvec,_ = aruco.estimatePoseSingleMarkers(corners[0], 0.19, mtx, dist)
+      rvec, tvec,_ = aruco.estimatePoseSingleMarkers(corners[lock_number], markersize, mtx, dist)
+      
 
       # read corners informatio
       topleftX = corners[0][0][0][0]
@@ -60,20 +78,7 @@ class image_converter:
 
       bottomrightX = corners[0][0][3][0]
       bottomrightY = corners[0][0][3][1]
-
-      # print corners information
-      #print("topleft  corner x {}".format(topleftX))
-      #print("topleft corner y {}".format(topleftY))
-
-      #print("topright corner x {}".format(toprightX))
-      #print("topright corner y {}".format(toprightY))
-
-     # print("bottomleft corner x {}".format(bottomleftX))
-     # print("bottomleft corner y {}".format(bottomlextY))
-
-     # print("bottomright corner x {}".format(bottomrightX))
-    #  print("bottomright corner y {}".format(bottomrightY))
-
+      
       # get pose information
       cor_x = tvec[0][0][0]
       cor_y = tvec[0][0][1]
@@ -81,7 +86,7 @@ class image_converter:
       print("x=",cor_x)
       print("y=",cor_y)
       print("z=",cor_z)
-#      time.sleep(2);#delete later
+      
       midpointX = (topleftX  + bottomrightX)/2
       midpointY = (topleftY + bottomrightY)/2
 
@@ -91,7 +96,9 @@ class image_converter:
 
       # draw ID text on top of image
       font = cv2.FONT_HERSHEY_SIMPLEX
-      cv2.putText(cv_image, "Id: " + str(ids), (0,64), font, 1, (0,255,0),2,cv2.LINE_AA)
+      cv2.putText(cv_image, "X: {}".format(cor_x), (0,364), font, 1, (0,255,0),2,cv2.LINE_AA)
+      cv2.putText(cv_image, "Y: {}".format(cor_y), (0,400), font, 1, (0,255,0),2,cv2.LINE_AA)
+      cv2.putText(cv_image, "Z: {}".format(cor_z), (0,436), font, 1, (0,255,0),2,cv2.LINE_AA)
 
       # incorporate pose information together and print on image
       dis=Float32MultiArray()
@@ -107,9 +114,16 @@ class image_converter:
       # Node Publish - cv_image
       try:
         self.image_pub.publish(self.bridge.cv2_to_imgmsg(cv_image, "bgr8"))
-      
       except CvBridgeError as e:
         print(e)
+        
+    else:
+      self.lostnumber+=1
+      if self.lostnumber>100:
+        dis = Float32MultiArray()
+        dis.data = (float('nan'), float('nan'), float('nan'))
+        self.distance_pub.publish(dis)
+        
 
 def main(args):
     global  ret, mtx, dist, rvecs, tvecs
