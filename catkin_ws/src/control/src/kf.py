@@ -108,7 +108,7 @@ class Controller:
         I = np.eye(2)
         self.P = np.dot(I - np.dot(K, self.C), self.P)
 
-        return corr_X.reshape(2, )
+        return corr_X
 
     # transform from camera frame to drone frame
     def call_back(self, msg):
@@ -116,8 +116,8 @@ class Controller:
         # prediction
         pred_X = None
         if self.velocity.x is not 0.0 and not math.isnan(self.state.x):
-            U = np.array([self.velocity.x, self.velocity.y]).reshape(2, 1)
-            X = np.array([self.state.x, self.state.y]).reshape(2, 1)
+            U = np.array([self.velocity.x, self.velocity.y]).reshape((2, 1))
+            X = np.array([self.state.x, self.state.y]).reshape((2, 1))
             pred_X = self.kf_predict(X, U)
         
         # sensor(camera) measurement
@@ -127,10 +127,10 @@ class Controller:
 
         # state estimation(only xy)
         if pred_X is not None:
-            Y = np.array([self.state.x, self.state.y]).reshape(2, 1)
+            Y = np.array([self.state.x, self.state.y]).reshape((2, 1))
             corr_X = self.kf_update(pred_X, Y)
-            self.state.x = corr_X[0]
-            self.state.y = corr_X[1]
+            self.state.x = corr_X[0][0]
+            self.state.y = corr_X[1][0]
 
 
     def pos_call_back(self, msg):
