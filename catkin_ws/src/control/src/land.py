@@ -105,12 +105,9 @@ class Controller:
         for i in range(200):
             self.position_publisher.publish(pos_msg)
             self.rate.sleep()
-        
-    def move_to_goal(self):
 
-        #variable initialization
+    def move_in_2d(self, tolerance_2d):
         vel_msg = Twist()
-        tolerance_2d = 1
 
         # move in 2d
         rho = euclidean_distance(self.state.x, self.state.y)
@@ -143,47 +140,47 @@ class Controller:
             self.velocity_publisher.publish(vel_msg)
             self.rate.sleep()
 
-        print("_________________start descending_________________")
-
-        # descending
-        if not math.isnan(self.state.x)
-            height = self.state.z
+    def move_in_height(self, tolerance_height):
+        vel_msg = Twist()
+        height = self.state.z
         
-            tolerance_height = 0.1
-            while height >= tolerance_height and not math.isnan(self.state.x):
-                rospy.loginfo("height from goal:"+str(height))
-                height = self.state.z
+        while height >= tolerance_height and not math.isnan(self.state.x):
+            rospy.loginfo("height from goal:"+str(height))
+            height = self.state.z
 
-                vz = self.pid_rho_height.compute(err_z) * 0.2
+            vz = self.pid_rho_height.compute(err_z) * 0.2
 
-                #fill message
-                vel_msg.linear.x = 0.0 
-                vel_msg.linear.y = 0.0
-                vel_msg.linear.z = vz
-                vel_msg.angular.x = 0.0
-                vel_msg.angular.y = 0.0
-                vel_msg.angular.z = 0.0
+            #fill message
+            vel_msg.linear.x = 0.0 
+            vel_msg.linear.y = 0.0
+            vel_msg.linear.z = vz
+            vel_msg.angular.x = 0.0
+            vel_msg.angular.y = 0.0
+            vel_msg.angular.z = 0.0
 
-                #debugging
-                print("vx: {:6f}, x distance: {:6f}".format(vel_msg.linear.x, self.state.x))
-                print("vy: {:6f}, y distance: {:6f}".format(vel_msg.linear.y, self.state.y))
-                print("vz: {:6f}, z distance: {:6f}".format(vel_msg.linear.z, self.state.z))
-                print("_________________")
+            #debugging
+            print("vx: {:6f}, x distance: {:6f}".format(vel_msg.linear.x, self.state.x))
+            print("vy: {:6f}, y distance: {:6f}".format(vel_msg.linear.y, self.state.y))
+            print("vz: {:6f}, z distance: {:6f}".format(vel_msg.linear.z, self.state.z))
+            print("_________________")
 
-                #publish
-                self.velocity_publisher.publish(vel_msg)
-                self.rate.sleep()
+            #publish
+            self.velocity_publisher.publish(vel_msg)
+            self.rate.sleep()
 
+        
+    def move_to_goal(self):
 
-        #if self.local_position.pose.position.z > 0:
-        #    print("landing begin")
-        #    vel_msg.linear.x=0.0
-        #    vel_msg.linear.y=0.0
-        #    vel_msg.linear.z=-2.0
-        #    for i in range(1000):
-        #        self.velocity_publisher.publish(vel_msg)
-        #        self.rate.sleep()
-            
+        tolerance_2d = [0.5, 0.25]
+        tolerance_height = [1, 0.5]
+        move_in_2d(tolerance_2d[0])
+        print("_________________start descending - 1_________________")
+        move_in_height(tolerance_height[0])
+
+        move_in_2d(tolerance_2d[1])
+        print("_________________start descending - 2_________________")
+        move_in_height(tolerance_height[1])
+
         # stop the robot
         vel_msg.linear.x=0.0
         vel_msg.linear.y=0.0
@@ -200,7 +197,7 @@ class Controller:
         except rospy.ServiceException as e:
             print("Landing failed: %s" %e)
 
-         # Disarm
+        # Disarm
         print "\n Disarming"
         rospy.wait_for_service('/mavros/cmd/arming')
         try:
@@ -209,6 +206,18 @@ class Controller:
             rospy.loginfo(response)
         except rospy.ServiceException as e:
             print("Disarming failed: %s" %e)
+
+        #if not math.isnan(self.state.x):
+
+
+        #if self.local_position.pose.position.z > 0:
+        #    print("landing begin")
+        #    vel_msg.linear.x=0.0
+        #    vel_msg.linear.y=0.0
+        #    vel_msg.linear.z=-2.0
+        #    for i in range(1000):
+        #        self.velocity_publisher.publish(vel_msg)
+        #        self.rate.sleep()
 
 
         #pos_msg = PoseStamped()
