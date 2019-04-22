@@ -178,6 +178,16 @@ class Controller:
         except rospy.ServiceException as e:
             print("Landing failed: %s" %e)
 
+        # Disarm
+        print "\nDisarming"
+        rospy.wait_for_service('/mavros/cmd/arming')
+        try:
+            arming_cl = rospy.ServiceProxy('/mavros/cmd/arming', CommandBool)
+            response = arming_cl(value = False)
+            rospy.loginfo(response)
+        except rospy.ServiceException as e:
+            print("Disarming failed: %s" %e)
+
 
         #pos_msg = PoseStamped()
         #pos_msg.pose.position.x = self.local_position.pose.position.x
