@@ -80,7 +80,8 @@ class Controller:
         self.dt=(1.0/self.hz)
 
         #define pids
-        self.pid_rho = PID(kp=0.3,ki=0.01, dt=self.dt)
+        self.pid_rho_2d = PID(kp=0.3, ki=0.01, dt=self.dt)
+        self.pid_rho_height = PID(kp=0.1, ki=0.01, dt=self.dt)
 
     # transformation
     def call_back(self, msg):
@@ -109,49 +110,70 @@ class Controller:
 
         #variable initialization
         vel_msg = Twist()
-        tolerance_position = 0.01
+        tolerance_2d = 1
 
-        rho = euclidean_distance(self.state.x, self.state.y, self.state.z)
-        while rho >= tolerance_position or rho==0 and not math.isnan(self.state.x):
-            rospy.loginfo("Distance from goal:"+str(rho))
-           # if math.isnan(self.state.x):
-           #     for i in range(100):
-           #         self.rate.sleep()
-           #         if ~math.isnan(self.state.x):
-           #             print("find not nan")
-           #             break
-           # if math.isnan(self.state.x):
-           #     break
-            rho = euclidean_distance(self.state.x, self.state.y, self.state.z)
+        # move in 2d
+        rho = euclidean_distance(self.state.x, self.state.y)
+        while rho >= tolerance_2d or rho==0 and not math.isnan(self.state.x):
+            rospy.loginfo("2d Distance from goal:"+str(rho))
+            rho = euclidean_distance(self.state.x, self.state.y)
+
             err_x = self.state.x
             err_y = self.state.y
-            err_z = self.state.z
 
             #Compute PID
-            vx = self.pid_rho.compute(err_x)
-            vy = self.pid_rho.compute(err_y)
-            vz = self.pid_rho.compute(err_z) * 0.2
+            vx = self.pid_rho_2d.compute(err_x)
+            vy = self.pid_rho_2d.compute(err_y)
 
             #fill message
             vel_msg.linear.x = vx 
             vel_msg.linear.y = vy
-            vel_msg.linear.z = vz
+            vel_msg.linear.z = 0.0
             vel_msg.angular.x = 0.0
             vel_msg.angular.y = 0.0
             vel_msg.angular.z = 0.0
 
             #debugging
-            print("vx: {}".format(vel_msg.linear.x))
-            print("x: {}".format(self.state.x))
-            print("vy: {}".format(vel_msg.linear.y))
-            print("y: {}".format(self.state.y))
-            print("vz: {}".format(vel_msg.linear.z))
-            print("z: {}".format(self.state.z))
+            print("vx: {:6f}, x distance: {:6f}".format(vel_msg.linear.x, self.state.x))
+            print("vy: {:6f}, y distance: {:6f}".format(vel_msg.linear.y, self.state.y))
+            print("vz: {:6f}, z distance: {:6f}".format(vel_msg.linear.z, self.state.z))
             print("_________________")
 
             #publish
             self.velocity_publisher.publish(vel_msg)
             self.rate.sleep()
+
+        print("_________________start descending_________________")
+
+        # descending
+        if not math.isnan(self.state.x)
+            height = self.state.z
+        
+            tolerance_height = 0.1
+            while height >= tolerance_height and not math.isnan(self.state.x):
+                rospy.loginfo("height from goal:"+str(height))
+                height = self.state.z
+
+                vz = self.pid_rho_height.compute(err_z) * 0.2
+
+                #fill message
+                vel_msg.linear.x = 0.0 
+                vel_msg.linear.y = 0.0
+                vel_msg.linear.z = vz
+                vel_msg.angular.x = 0.0
+                vel_msg.angular.y = 0.0
+                vel_msg.angular.z = 0.0
+
+                #debugging
+                print("vx: {:6f}, x distance: {:6f}".format(vel_msg.linear.x, self.state.x))
+                print("vy: {:6f}, y distance: {:6f}".format(vel_msg.linear.y, self.state.y))
+                print("vz: {:6f}, z distance: {:6f}".format(vel_msg.linear.z, self.state.z))
+                print("_________________")
+
+                #publish
+                self.velocity_publisher.publish(vel_msg)
+                self.rate.sleep()
+
 
         #if self.local_position.pose.position.z > 0:
         #    print("landing begin")
@@ -173,13 +195,13 @@ class Controller:
         rospy.wait_for_service('/mavros/cmd/land')
         try:
             land_cl = rospy.ServiceProxy('/mavros/cmd/land', CommandTOL)
-            response = land_cl(altitude=2, latitude=0, longitude=0, min_pitch=0, yaw=0)
+            response = land_cl(altitude = height, latitude=0, longitude=0, min_pitch=0, yaw=0)
             rospy.loginfo(response)
         except rospy.ServiceException as e:
             print("Landing failed: %s" %e)
 
          # Disarm
-        print "\nDisarming"
+        print "\n Disarming"
         rospy.wait_for_service('/mavros/cmd/arming')
         try:
             arming_cl = rospy.ServiceProxy('/mavros/cmd/arming', CommandBool)
